@@ -1,5 +1,5 @@
 Metadata-Version: 2.1
-Name: Zatca-Csr-Generator
+Name: zatca-csr-generator
 Version: 0.1.0
 Summary: Zatca Csr Generator generates the certificate signing request for zatca phase2, It is takes informations and parameters from the user and returns the csr in base64 ready to submit to zatca
 Home-page: https://github.com/bilaljmal/zatca_csr_generator

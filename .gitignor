@@ -1,1 +1,4 @@
 pyproject.toml
+build
+dist
+zatca_csr_generator.egg-info
