@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(
-    name='zatca csr generator',
+    name='Zatca Csr Generator',
     version='0.1.0',
     description='Zatca Csr Generator generates the certificate signing request for zatca phase2, '
                 'It is takes informations and parameters from the user and returns the csr in base64 ready to submit to zatca',
