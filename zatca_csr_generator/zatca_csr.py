@@ -32,7 +32,7 @@ class GenerateCSR:
         )
         return private_key_pem
 
-    def create_custom_extension(oid_string, value):
+    def create_custom_extension(self,oid_string, value):
         oid = ObjectIdentifier(oid_string)
         ext = x509.extensions.UnrecognizedExtension(oid, value)
         return ext

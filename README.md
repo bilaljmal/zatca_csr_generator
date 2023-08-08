@@ -5,15 +5,18 @@ Generate Private Key with EC Curve and CSR for the Zatca Phase2 for the complien
 To use the Zatca Csr Generator, you need to have cryptography installed. You can install it using pip:
 
 ```shell
-pip install cryptography,zatca_csr_generator
+pip install zatca_csr_generator
 ```
 
 # Usage
 First, import the necessary modules:
 
 Then, import and create an instance of the CsrGenerator class:
-
+```
+from zatca_csr_generator import zatca_csr
 certificate=GenerateCSR()
+```
+
 
 # Loading an method to obtain private key and certificate signing request
 To load an image from a file, use the load_image method:
@@ -44,12 +47,12 @@ privatekey will return the string for the private key and
 # Example
 
 ```
-from zatca_csr_generator import  GenerateCSR
+from zatca_csr_generator import zatca_csr
 
-certificate=GenerateCSR()
+certificate = zatca_csr.GenerateCSR()
 
 
-privatekey,csr= certificate.generate_csr.("production","SA", "TST", "TST",
+privatekey,csr = certificate.generate_csr("production","SA", "TST", "TST",
                                           "TST", "1-TST|2-TEST|3-uuid",
                                           "3210124145101243", "1100", "Information Technology", "RHSX46590")
 
