@@ -1,20 +1,16 @@
-from cryptography import x509
-from cryptography.hazmat._oid import NameOID
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.bindings._rust import ObjectIdentifier
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import ec
 import base64
+import subprocess
+import time
+import os
 
 class GenerateCSR:
-    def __init__(self):
-
+    def __init__(self, working_directory=None):
         """
         Initializes the GenerateCSR class.
         """
         self.csr_type = None
         self.C = None
-        self.N = None
+        self.CN = None
         self.O = None
         self.OU = None
         self.SN = None
@@ -22,22 +18,61 @@ class GenerateCSR:
         self.TITLE = None
         self.CATEGORY = None
         self.ADDRESS = None
+        self.working_directory = working_directory or os.path.dirname(os.path.abspath(__file__))
 
-    def generate_key(self):
-        private_key = ec.generate_private_key(ec.SECP256K1(), backend=default_backend())
-        private_key_pem = private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=serialization.NoEncryption()
-        )
-        return private_key_pem
+    def run_command(self, command):
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if result.returncode != 0:
+            print(f"Error: {result.stderr}")
+        return result
 
-    def create_custom_extension(self,oid_string, value):
-        oid = ObjectIdentifier(oid_string)
-        ext = x509.extensions.UnrecognizedExtension(oid, value)
-        return ext
+    def pro_create_key(self):
+        os.chdir(self.working_directory)
+
+        commands = [
+            ['openssl', 'ecparam', '-name', 'secp256k1', '-genkey', '-noout', '-out', 'PrivateKey.pem'],
+            ['openssl', 'ec', '-in', 'PrivateKey.pem', '-pubout', '-conv_form', 'compressed', '-out', 'PublicKey.pem'],
+            ['openssl', 'base64', '-d', '-in', 'PublicKey.pem', '-out', 'PublicKey.bin']
+        ]
+
+        for command in commands:
+            result = self.run_command(command)
+            if result.returncode != 0:
+                return  # Exit if any command fails
+
+        print("Key generation and conversion successful")
+
+    def create_configuration(self, **data):
+        os.chdir(self.working_directory)
+
+        red = "default.cnf"
+        wrt = "openssl.cnf"
+
+        with open(red, 'r') as f:
+            filedata = f.read()
+
+        replacements = {
+            "C=C": "C=" + str(data.get('C', '')),
+            "CN=CN": "CN=" + str(data.get('CN', '')),
+            "O=O": "O=" + str(data.get('O', '')),
+            "OU=OU": "OU=" + str(data.get('OU', '')),
+            "SN=SN": "SN=" + str(data.get('SN', '')),
+            "UID=UUIDS": "UID=" + str(data.get('UID', '')),
+            "title=titles": "title=" + str(data.get('TITLE', '')),
+            "registeredAddress=Zatca": "registeredAddress=" + str(data.get('ADDRESS', '')),
+            "businessCategory=Zatca": "businessCategory=" + str(data.get('CATEGORY', '')),
+            "TYPE=TYPE": str(data.get('TYPE', '')),
+        }
+
+        for key, value in replacements.items():
+            filedata = filedata.replace(key, value)
+
+        with open(wrt, 'w') as t:
+            t.write(filedata)
 
     def generate_csr(self, csr_type, C, CN, O, OU, SN, UID, TITLE, CATEGORY, ADDRESS):
+        os.chdir(self.working_directory)
+
         if csr_type == "sandbox":
             customoid = b"..TESTZATCA-Code-Signing"
         elif csr_type == "simulation":
@@ -45,34 +80,36 @@ class GenerateCSR:
         else:
             customoid = b"..ZATCA-Code-Signing"
 
-        private_key_pem = self.generate_key()
-        private_key = serialization.load_pem_private_key(private_key_pem, password=None, backend=default_backend())
-        custom_oid_string = "1.3.6.1.4.1.311.20.2"
-        custom_value = customoid
-        custom_extension = self.create_custom_extension(custom_oid_string, custom_value)
-        dn = x509.Name([
-            x509.NameAttribute(NameOID.COMMON_NAME, CN),
-            x509.NameAttribute(NameOID.COUNTRY_NAME, C),
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, O),
-            x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, OU),
-        ])
-        alt_name = x509.SubjectAlternativeName({
-            x509.DirectoryName(x509.Name([
-                x509.NameAttribute(NameOID.SURNAME, SN),
-                x509.NameAttribute(NameOID.USER_ID, UID),
-                x509.NameAttribute(NameOID.TITLE, TITLE),
-                x509.NameAttribute(NameOID.BUSINESS_CATEGORY, CATEGORY + "/registeredAddress=" + ADDRESS),
-            ])),
-        })
-
-        csr = (
-            x509.CertificateSigningRequestBuilder()
-            .subject_name(dn)
-            .add_extension(custom_extension, critical=False)
-            .add_extension(alt_name, critical=False)
-            .sign(private_key, hashes.SHA256(), backend=default_backend())
+        self.pro_create_key()
+        self.create_configuration(
+            C=C, CN=CN, O=O, OU=OU, SN=SN, UID=UID, TITLE=TITLE, CATEGORY=CATEGORY, ADDRESS=ADDRESS, TYPE=customoid
         )
-        mycsr = csr.public_bytes(serialization.Encoding.PEM)
-        base64csr = base64.b64encode(mycsr)
-        encoded_string = base64csr.decode('utf-8')
-        return private_key_pem,encoded_string
+
+        command = [
+            "openssl", "req", "-new", "-sha256",
+            "-key", "PrivateKey.pem",
+            "-extensions", "v3_req",
+            "-config", "openssl.cnf",
+            "-out", "cert.csr"
+        ]
+
+        result = self.run_command(command)
+        if result.returncode != 0:
+            return {"status": 500, "error": result.stderr}
+
+        # Wait a moment for the file to be written
+        time.sleep(0.5)
+
+        try:
+            with open("cert.csr", "r") as f, open("PrivateKey.pem", "r") as pvt, open("PublicKey.pem", "r") as pbl:
+                basestr = base64.b64encode(f.read().encode('utf-8')).decode('utf-8')
+                response = {
+                    "status": 200,
+                    "certificate_signing_request": basestr,
+                    "private_key": pvt.read()[31:-30].replace('\n', ''),
+                    "public_key": pbl.read()[27:-25].replace('\n', '')
+                }
+        except Exception as e:
+            response = {"status": 500, "error": str(e)}
+
+        return response
